@@ -1,13 +1,14 @@
 const child_process = require('child_process');
+const Utils = require('./utils');
 let seq = 0;
 
 class CmdRunmer {
 
     run(cmd, args, onClose) {
 
-        const output = { id: seq++, result: false, out: "", err: "", start: new Date(), get elapsed() { return elapse(this.finish, this.start);} };
+        const output = { id: seq++, result: false, out: "", err: "", start: new Date(), get elapsed() { return Utils.elapse(this.finish, this.start);} };
 
-        console.debug(`JOB#${output.id}\t${cmd}\t${args.join(" ")}`);
+        console.debug(`JOB#${output.id}\t${cmd} ${args.join(" ")}`);
 
         const child = child_process.spawn(cmd, args, { encoding: 'utf8', shell: true });
 
@@ -26,7 +27,7 @@ class CmdRunmer {
         child.on('close', (code, signal) => {
             output.finish = new Date();
             output.result = code == 0;
-            console.log(`JOB$${output.id}\t${output.elapsed / 1000}s\tExit with ${code} [${signal}]`);
+            console.log(`JOB$${output.id}\t${parseInt(output.elapsed / 1000)}s\tExit with ${code} [${signal}]`);
             onClose(output);
         });
     }
