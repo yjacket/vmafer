@@ -2,20 +2,25 @@ const fs = require("fs");
 const path = require("path");
 const es = require('event-stream');
 const sleep = require('system-sleep');
+
+const MAX_WORKER = 6;
+process.env.NODE_ENV = 'development';
+process.env.APP_PATH = __dirname.replace('\\resources\\app.asar', '');
+
+const log = require("./log.js")();
 const cmdrunner = require("./cmdrunner.js");
 const Preset = require("./preset.js");
 const Utils = require("./utils.js");
-const MAX_WORKER = 6;
 
 if (process.argv.length < 3) {
-    console.log("Usaeg: node app.js original distortion")
+    log.info("Usaeg: node app.js original distortion")
     return 1;
 }
 const ref = process.argv[2];
 const dist = process.argv.length >= 4 ? process.argv[3] : null;
 
 if (!fs.existsSync(ref)) {
-    console.log("Original is not exist:", ref);
+    log.info("Original is not exist:", ref);
     return 1;
 }
 
@@ -23,10 +28,10 @@ const distortions = [];
 
 if (dist == null) {
     getEncoderSettings(ref).forEach(preset => distortions.push(preset));
-    console.log(`Test ${distortions.length} cases`);
+    log.info(`Test ${distortions.length} cases`);
     encodeAll(distortions, () => compare(ref, distortions));
 } else if (!fs.existsSync(dist)) {
-    console.log("Distortion is not exist:", dist);
+    log.info("Distortion is not exist:", dist);
     return 1;
 } else {
     if (fs.lstatSync(dist).isDirectory()) {
@@ -35,7 +40,7 @@ if (dist == null) {
                 distortions.push({output: path.join(dist, fname), path: dist, name: fname});
             }
         });
-        console.log(`Found ${distortions.length} files in ${dist}`);
+        log.info(`Found ${distortions.length} files in ${dist}`);
     } else {
         distortions.push({output: dist, path: "", name: dist});
     }
@@ -47,9 +52,9 @@ function compare(ref, distortions) {
     try {
         doCompare(ref, distortions);
     } catch (e) {
-        console.error(e);
+        log.error(e);
     } finally {
-        console.log(`Elapsed: ${Utils.elapse(new Date(), start) / 1000}sec`);
+        log.info(`Elapsed: ${Utils.elapse(new Date(), start) / 1000}sec`);
     }
 }
 
@@ -75,7 +80,7 @@ function doCompare(original, distortions) {
             working--;
             done++;
             if (!output.result) {
-                console.error("Error", output);
+                log.error("Error", output);
                 return;
             }
             let rows = -1, psnr = 0, ssim = 0, vmaf = 0;
@@ -86,7 +91,7 @@ function doCompare(original, distortions) {
                     if (line && line.indexOf(",") > -1 && rows++ >= 0) {
                         const cols = line.split(",");
                         if (isNaN(cols[12])) {
-                            console.warn(`Line has NaN value: ${line}`, cols[12], cols[13], cols[14]);
+                            log.warn(`Line has NaN value: ${line}`, cols[12], cols[13], cols[14]);
                             rows--;
                         } else {
                             psnr += parseFloat(cols[12]);
@@ -96,7 +101,7 @@ function doCompare(original, distortions) {
                     }
                     s.resume();
                 })
-                .on('error', err => console.error("Error", err))
+                .on('error', err => log.error("Error", err))
                 .on('end', () => {
                     psnr /= rows;
                     ssim /= rows;
@@ -111,7 +116,7 @@ function doCompare(original, distortions) {
                     results.push(`${psnr}\t${ssim}\t${vmaf}\t${total}\t${comp}\t${Utils.numberWithCommas(fsize)}\t${elapsed}\t${dist.name}`);
                     fs.unlink(logfile, (err) => { 
                         if (err) {
-                            console.error("Failed to delete log file", err);
+                            log.error("Failed to delete log file", err);
                         }
                     });
                 })
@@ -120,13 +125,16 @@ function doCompare(original, distortions) {
 
     }
     
-    console.log(`\r\n<Results>\r\n`);
-    console.log(`Original: ${ref} (${Utils.humanFileSize(origSize)})`);
-    console.log("------\t------\t------\t------\t------\t------------\t------\t------------");
-    console.log(`PSNR\tSSIM\tVMAF\tTotal\tComp%\tSize(bytes)\tElapsed\tDistortion`);
-    console.log("------\t------\t------\t------\t------\t------------\t------\t------------");
-    results.forEach(r => console.log(r));
-    console.log(`\r\nDone!`);
+    log.info(``);
+    log.info(`<Results>`);
+    log.info(``);
+    log.info(`Original: ${ref} (${Utils.humanFileSize(origSize)})`);
+    log.info("------\t------\t------\t------\t------\t------------\t------\t------------");
+    log.info(`PSNR\tSSIM\tVMAF\tTotal\tComp%\tSize(bytes)\tElapsed\tDistortion`);
+    log.info("------\t------\t------\t------\t------\t------------\t------\t------------");
+    results.forEach(r => log.info(r));
+    log.info(``);
+    log.info(`Done!`);
 }
 
 function getEncoderSettings(original) {
